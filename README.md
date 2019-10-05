@@ -1,9 +1,24 @@
 # Regular Expressions to the Rescue
 
+<!-- TOC -->
+
+- [Regular Expressions to the Rescue](#regular-expressions-to-the-rescue)
+    - [TL;DR](#tldr)
+    - [Preamble](#preamble)
+    - [Tools & data](#tools--data)
+    - [Regular Expressions](#regular-expressions)
+        - [Finding four-digit number sequences](#finding-four-digit-number-sequences)
+        - [Subexpressions and replacement variables](#subexpressions-and-replacement-variables)
+
+<!-- /TOC -->
+
 ## TL;DR
 
 ```txt
+Regex search string
 (",)([0-9]{4},")
+-----
+Regex replacement string
 $10$2
 ```
 *Example solution to add leading zeros to improperly encoded FIPS codes*
@@ -31,7 +46,10 @@ Without a correct FIPS code, this dataset is difficult to visualize. While there
 ## Tools & data
 We're using [VS Code](https://code.visualstudio.com/download) for a code editor, though most code editors support regular expressions. For mapping, we ❤️[QGIS](https://qgis.org/en/site/forusers/download.html) 3.8. 
 
-Download the [County Presidential Election Returns 2000-2016](https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/VOQCHQ) as a CSV file.
+### Downloads
+
+* The [County Presidential Election Returns 2000-2016](https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/VOQCHQ) as a CSV file.
+* Cartographic boundary files for 2016 counties, [1:5M scale](https://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_us_county_5m.zip) as a zipped Shapefile.
 
 ## Regular Expressions
 Have you ever used a Find & Replace in a text or document editor? We hear, "Of course!" For example, find all strings that spell "pizza" and replace with "tofu" for that last minute change to the pool party invitation. Well, that is simple *regex*, or regular expression.
@@ -46,6 +64,111 @@ Most often, regular expressions are used to find string patterns in a text file.
 
 The `^` says the string must start at the beginning of the line. The `.*` sequence matches any character one or more times. A `.` matches any single character so the `\.jpg` escapes the special meaning of the `.` character to literally mean `.jpg`. The `$` character matches the end of the line. 
 
-Confusing? Of course it is! Check out some examples on [regular expressions in Visual Studio](https://docs.microsoft.com/en-us/visualstudio/ide/using-regular-expressions-in-visual-studio?view=vs-2019).
+Confusing? Of course it is! Check out some examples on [regular expressions in Visual Studio](https://docs.microsoft.com/en-us/visualstudio/ide/using-regular-expressions-in-visual-studio?view=vs-2019). Play with examples on the download CSV file and see if you can predictable select various string configurations. 
+
+### Finding four-digit number sequences
+
+In our example, we have a pattern where four digits are surrounded by double quotes. In fact the second quote is followed by "P" because this file counts presidential returns. So, a simple pattern would be:
+
+```
+",1001,"P
+```
+
+We know of course the four digits change. We need to identify a regex pattern that can identify only a four-digit sequence. Using square brackets, the pattern `[1-9]` would match any number of digits between 1 and 9. Now, we need to limit the length of the sequence to four digits. Using curly brackets, we can limit the length to any number of occurrences. In our case, we want `{4}`. So the regex pattern would be:
+
+```
+",[1-9]{4},"
+```
+
+The `"` and `,` are not special characters in our regex, so the are interpreted as typed. Other characters are special and, depending of the flavor of regex you are using, slightly different characters and syntax are used. We are using VS Code which uses the [.NET regex engine](https://docs.microsoft.com/en-us/dotnet/standard/base-types/regular-expression-language-quick-reference).
+
+### Subexpressions and replacement variables
+
+While it is important to select desired strings, the challenge is surgically replacing the string with the correct characters. Let's present grouping subexpressions.
+
+Goal. We need to put the zero between the first `,` and digit. If we applied the following as the replacement string, we would get literally what is typed.
+
+```
+",0[1-9]{4},"
+```
+
+Nice try and seems plausible! Replacement strings do not, by default, implement regex expressions. Instead, we should group the search pattern with subexpressions that expose the area we need to modify. The grouping pattern uses round brackets `()` to isolate a subexpression. Each group then is assigned a numeric label, starting with the number 1, and ascending in value left to right for each group. The first group:
+
+
+```
+(",)
+```
+
+And the second group:
+
+```
+([1-9]{4},")
+```
+
+Together, the search string is:
+
+```
+(",)([1-9]{4},")
+```
+
+To access these groups in the replacement string, with use the grouping number label proceeded by a `$` character. The below replacement string would change nothing.
+
+```
+$1$2
+```
+
+The last addition to the replacement string is to insert the number `0` between the groups.
+
+```
+$10$2
+```
+
+Now, you should have properly formatted FIPS code in your CSV! Let's map!
+
+## Mapping 2016 election returns by county
+
+```sql
+select 
+	FIPS,
+	state,
+	county,
+	cast(candidatevotes as number) as hrc_votes
+from 
+	"countypres_2000-2016" 
+where 
+	"party" = 'democrat'
+```
+
+
+```sql
+select 
+	FIPS,
+	cast(candidatevotes as number) as djt_votes,
+	cast(totalvotes as number) as total_votes
+from 
+	"countypres_2000-2016" 
+where 
+	"party" = 'republican'
+```
+
+The first order of business is filtering and joining the CSV in Q. Add the layers to Q making sure to import the CSV **without allowing QGIS automatically detecting field types**. We'll undo everything! The easiest way to accomplish this is to drag and drop the CSV from your OS file system to QGIS Map Canvas.
+
+Right+click the CSV file, select **Filter...** and apply the following.
+
+```sql
+"year" = '2016'
+```
+
+Next, double-click the county layer and use the **Layer Properties > Joins** to complete the join.
+
+![Tabular join](graphics/join.png)    
+*Tabular join in QGIS*
+
+To complete the join (and make it permanent), export the layer to either a GeoJSON or GeoPackage.
+
+OK, since we imported the CSV with detecting field types, most of the field are interpreted as strings. When we want to map them, we need to enclose the field in the conversion function, `to_real()` using the ** Expression Builder** for symbology.
+
+
+
 
 
