@@ -16,6 +16,10 @@
 
 <!-- /TOC -->
 
+## Location and time
+
+[Map to Miller Hall](https://maptimelex.github.io/location/) | Thursday, October 10, 6 PM Lexington, KY
+
 ## TL;DR
 
 ```txt
